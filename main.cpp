@@ -11,4 +11,4 @@ int main(int argc, char *argv[])
     return app.exec();
 }
 
-//I regret nothing
+// I regret nothing
