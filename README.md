@@ -3,7 +3,7 @@ Desktop version of OneCT for Linux systems on base QT and C++
 CODE IS NOT COMPLETE
 
 # OneCT Desktop RU
-Приложение для линукс систем на базе QT и C++
+Приложение для линукс систем на базе QT и C++ для OneCT
 КОД НЕ ЗАКОНЧЕН
 
 
