@@ -58,13 +58,27 @@ bool ApiClient::login(const QString& email, const QString& password, const QStri
     return false;
 }
 
+//
+
 bool ApiClient::checkToken() {
     QUrlQuery params;
     params.addQueryItem("method", "check");
     params.addQueryItem("token", token);
 
     QJsonObject result = sendRequest("account.php", params);
-    return result.contains("valid") && result["valid"].toBool();
+    qDebug() << "Token check result:" << result;
+    
+    if (result.contains("valid")) {
+        return result["valid"].toBool();
+    }
+    if (result.contains("status")) {
+        return result["status"].toString() == "valid";
+    }
+    if (result.contains("success")) {
+        return result["success"].toBool();
+    }
+    
+    return false;
 }
 
 QJsonObject ApiClient::getProfile() {
@@ -72,15 +86,9 @@ QJsonObject ApiClient::getProfile() {
     params.addQueryItem("method", "profile");
     params.addQueryItem("token", token);
 
-    return sendRequest("user.php", params);
-}
-
-QJsonObject ApiClient::getUser(const QString& userIds) {
-    QUrlQuery params;
-    params.addQueryItem("method", "getuser");
-    params.addQueryItem("id", userIds);
-
-    return sendRequest("user.php", params);
+    QJsonObject result = sendRequest("user.php", params);
+    qDebug() << "Profile response:" << result;
+    return result;
 }
 
 bool ApiClient::updateProfile(const QString& name, const QString& desc, bool wallOpen) {
@@ -92,20 +100,19 @@ bool ApiClient::updateProfile(const QString& name, const QString& desc, bool wal
     params.addQueryItem("wall", wallOpen ? "1" : "0");
 
     QJsonObject result = sendRequest("user.php", params, true);
-    return result.contains("success") && result["success"].toInt() == 1;
-}
-
-QJsonArray ApiClient::searchUsers(const QString& query, int page) {
-    QUrlQuery params;
-    params.addQueryItem("method", "get");
-    params.addQueryItem("q", query);
-    params.addQueryItem("p", QString::number(page));
-
-    QJsonObject result = sendRequest("search.php", params);
-    if (result.contains("users") && result["users"].isArray()) {
-        return result["users"].toArray();
+    qDebug() << "Update profile result:" << result;
+    
+    if (result.contains("success") && result["success"].toInt() == 1) {
+        return true;
     }
-    return QJsonArray();
+    if (result.contains("status") && result["status"].toString() == "success") {
+        return true;
+    }
+    if (result.contains("result") && result["result"].toInt() == 1) {
+        return true;
+    }
+    
+    return false;
 }
 
 QJsonArray ApiClient::getGlobalWall(int page) {
@@ -115,10 +122,64 @@ QJsonArray ApiClient::getGlobalWall(int page) {
     params.addQueryItem("p", QString::number(page));
 
     QJsonObject result = sendRequest("wall.php", params);
+    qDebug() << "Global wall page" << page << "response:" << result;
+
     if (result.contains("posts") && result["posts"].isArray()) {
         return result["posts"].toArray();
     }
+    if (result.contains("data") && result["data"].isArray()) {
+        return result["data"].toArray();
+    }
+    if (result.contains("wall") && result["wall"].isArray()) {
+        return result["wall"].toArray();
+    }
+    if (result.contains("messages") && result["messages"].isArray()) {
+        return result["messages"].toArray();
+    }
+    
     return QJsonArray();
+}
+
+bool ApiClient::addPost(const QString& targetUserId, const QString& text) {
+    QUrlQuery params;
+    params.addQueryItem("method", "add");
+    params.addQueryItem("token", token);
+    params.addQueryItem("text", text);
+    
+    if (!targetUserId.isEmpty() && targetUserId != "0") {
+        params.addQueryItem("id", targetUserId);
+    }
+
+    QJsonObject result = sendRequest("wall.php", params, true);
+    qDebug() << "Add post result with ID" << targetUserId << ":" << result;
+    
+    if (result.contains("error")) {
+        qDebug() << "API Error:" << result["error"].toString();
+        return false;
+    }
+    
+    return true;
+}
+
+//
+
+
+QJsonObject ApiClient::getUser(const QString& userIds) {
+    QUrlQuery params;
+    params.addQueryItem("method", "getuser");
+    params.addQueryItem("id", userIds);
+
+    return sendRequest("user.php", params);
+}
+
+QJsonArray ApiClient::searchUsers(const QString& query, int page) {
+    QUrlQuery params;
+    params.addQueryItem("method", "get");
+    params.addQueryItem("q", query);
+    params.addQueryItem("p", QString::number(page));
+
+    QJsonObject result = sendRequest("search.php", params);
+    return result.value("users").toArray();
 }
 
 QJsonArray ApiClient::getUserWall(const QString& userId, int page) {
@@ -129,10 +190,7 @@ QJsonArray ApiClient::getUserWall(const QString& userId, int page) {
     params.addQueryItem("p", QString::number(page));
 
     QJsonObject result = sendRequest("wall.php", params);
-    if (result.contains("posts") && result["posts"].isArray()) {
-        return result["posts"].toArray();
-    }
-    return QJsonArray();
+    return result.value("posts").toArray();
 }
 
 bool ApiClient::deletePost(const QString& postId) {
@@ -142,7 +200,7 @@ bool ApiClient::deletePost(const QString& postId) {
     params.addQueryItem("id", postId);
 
     QJsonObject result = sendRequest("wall.php", params, true);
-    return result.contains("success") && result["success"].toInt() == 1;
+    return result.value("success").toInt() == 1;
 }
 
 bool ApiClient::likePost(const QString& postId) {
@@ -152,7 +210,7 @@ bool ApiClient::likePost(const QString& postId) {
     params.addQueryItem("id", postId);
 
     QJsonObject result = sendRequest("wall.php", params, true);
-    return result.contains("success") && result["success"].toInt() == 1;
+    return result.value("liked").toInt() == 1;
 }
 
 bool ApiClient::pinPost(const QString& postId) {
@@ -162,19 +220,9 @@ bool ApiClient::pinPost(const QString& postId) {
     params.addQueryItem("id", postId);
 
     QJsonObject result = sendRequest("wall.php", params, true);
-    return result.contains("success") && result["success"].toInt() == 1;
+    return result.value("pinned").toInt() == 1;
 }
 
-bool ApiClient::addPost(const QString& targetUserId, const QString& text) {
-    QUrlQuery params;
-    params.addQueryItem("method", "add");
-    params.addQueryItem("token", token);
-    params.addQueryItem("id", targetUserId);
-    params.addQueryItem("text", text);
-
-    QJsonObject result = sendRequest("wall.php", params, true);
-    return result.contains("success") && result["success"].toInt() == 1;
-}
 
 QJsonArray ApiClient::getComments(const QString& postId, int page) {
     QUrlQuery params;
@@ -184,10 +232,7 @@ QJsonArray ApiClient::getComments(const QString& postId, int page) {
     params.addQueryItem("page", QString::number(page));
 
     QJsonObject result = sendRequest("comments.php", params);
-    if (result.contains("comments") && result["comments"].isArray()) {
-        return result["comments"].toArray();
-    }
-    return QJsonArray();
+    return result.value("comments").toArray();
 }
 
 bool ApiClient::deleteComment(const QString& commentId) {
@@ -197,7 +242,7 @@ bool ApiClient::deleteComment(const QString& commentId) {
     params.addQueryItem("id", commentId);
 
     QJsonObject result = sendRequest("comments.php", params, true);
-    return result.contains("success") && result["success"].toInt() == 1;
+    return result.value("success").toInt() == 1;
 }
 
 bool ApiClient::addComment(const QString& postId, const QString& text) {
@@ -208,5 +253,5 @@ bool ApiClient::addComment(const QString& postId, const QString& text) {
     params.addQueryItem("text", text);
 
     QJsonObject result = sendRequest("comments.php", params, true);
-    return result.contains("success") && result["success"].toInt() == 1;
+    return result.value("success").toInt() == 1;
 }

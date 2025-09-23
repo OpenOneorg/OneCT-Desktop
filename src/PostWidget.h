@@ -11,7 +11,6 @@ class PostWidget : public QWidget {
 public:
     explicit PostWidget(const QJsonObject &post, ApiClient* api, QWidget *parent = nullptr);
 
-//чето нажимается типо
 private slots:
     void onLikeClicked();
     void onCommentClicked();

@@ -5,6 +5,7 @@
 #include <QUrlQuery>
 #include <QNetworkAccessManager>
 #include <QString>
+#include <QDebug>
 
 class ApiClient : public QObject {
     Q_OBJECT
@@ -28,6 +29,7 @@ public:
     bool addComment(const QString& postId, const QString& text);
 
     QString getToken() const { return token; }
+    QNetworkAccessManager* getNetworkManager() { return &manager; }
 
 private:
     QString token;
